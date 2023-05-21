@@ -11,7 +11,7 @@ from k_diffusion.sampling import BrownianTreeNoiseSampler, get_sigmas_karras, sa
 from PIL import Image
 from models.imagebind_model import imagebind_huge, ImageBindModel, ModalityType
 import data
-from data import load_and_transform_text#, load_and_transform_vision_data, load_and_transform_audio_data
+from data import load_and_transform_text, load_and_transform_vision_data, load_and_transform_audio_data
 
 from imgbind_guidance.schedule.schedule_params import get_alphas, get_alphas_cumprod, get_betas
 from imgbind_guidance.device import DeviceType, get_device_type
@@ -149,8 +149,9 @@ latents *= sigmas[0]
 
 cond = '1girl, masterpiece, extremely detailed, light smile, outdoors, best quality, best aesthetic, floating hair, full body, ribbon, looking at viewer, hair between eyes, watercolor (medium), traditional media'
 neg_cond = 'lowres, bad anatomy, bad hands, missing fingers, extra fingers, blurry, mutation, deformed face, ugly, bad proportions, monster, cropped, worst quality, jpeg, bad posture, long body, long neck, jpeg artifacts, deleted, bad aesthetic, realistic, real life, instagram'
-conds = [neg_cond, cond]
-# conds = [cond]
+# conds = [neg_cond, cond]
+# cond = ''
+conds = [cond]
 embed_and_mask: EmbeddingAndMask = embed(conds)
 embedding, _ = embed_and_mask
 
@@ -168,35 +169,39 @@ noise_sampler = BrownianTreeNoiseSampler(
 
 imgbind: ImageBindModel = imagebind_huge(pretrained=True).to(device).eval().requires_grad_(False)
 torch.compile(imgbind, mode='reduce-overhead')
-text_bind=['watercolour illustration of a girl sitting by a campfire at night']
-image_bind_path=[join(img_bind_assets_dir, asset) for asset in []]
-audio_bind_path=[join(img_bind_assets_dir, asset) for asset in []]
+# text_binds=[]
+text_binds=['watercolour illustration of a girl sitting by a campfire at night']
+# image_bind_paths=[join(assets_dir, asset) for asset in ['vaporwave.jpg']]
+audio_bind_paths=[join(assets_dir, asset) for asset in []]
+# audio_bind_paths=[join(assets_dir, asset) for asset in ['fire.wav']]
 imgbind_inputs: Dict[ModalityType, FloatTensor] = {
-  ModalityType.TEXT: load_and_transform_text(text_bind, device),
-  # ModalityType.VISION: load_and_transform_vision_data(image_bind_path, device),
-  # ModalityType.AUDIO: load_and_transform_audio_data(audio_bind_path, device),
+  ModalityType.TEXT: load_and_transform_text(text_binds, device),
+  # ModalityType.VISION: load_and_transform_vision_data(image_bind_paths, device),
+  # ModalityType.AUDIO: load_and_transform_audio_data(audio_bind_paths, device),
 }
 imgbind_out: Dict[ModalityType, FloatTensor] = imgbind.forward(imgbind_inputs)
 target_imgbind_cond: FloatTensor = imgbind_out[ModalityType.TEXT][0]
+# target_imgbind_cond: FloatTensor = imgbind_out[ModalityType.VISION][0]
+# target_imgbind_cond: FloatTensor = imgbind_out[ModalityType.AUDIO][0]
 guidance_scale=300.
-cfg_scale=2.
-denoiser = ImgBindGuidedCFGDenoiser(
-  denoiser=unet_k_wrapped,
-  imgbind=imgbind,
-  latents_to_rgb=guidance_decoder,
-  target_imgbind_cond=target_imgbind_cond,
-  cross_attention_conds=embedding,
-  guidance_scale=guidance_scale,
-  cfg_scale=cfg_scale,
-)
-# denoiser = ImgBindGuidedNoCFGDenoiser(
+# cfg_scale=2.0
+# denoiser = ImgBindGuidedCFGDenoiser(
 #   denoiser=unet_k_wrapped,
 #   imgbind=imgbind,
 #   latents_to_rgb=guidance_decoder,
 #   target_imgbind_cond=target_imgbind_cond,
 #   cross_attention_conds=embedding,
 #   guidance_scale=guidance_scale,
+#   cfg_scale=cfg_scale,
 # )
+denoiser = ImgBindGuidedNoCFGDenoiser(
+  denoiser=unet_k_wrapped,
+  imgbind=imgbind,
+  latents_to_rgb=guidance_decoder,
+  target_imgbind_cond=target_imgbind_cond,
+  cross_attention_conds=embedding,
+  guidance_scale=guidance_scale,
+)
 # denoiser = CFGDenoiser(
 #   denoiser=unet_k_wrapped,
 #   cross_attention_conds=embedding,
@@ -217,7 +222,7 @@ get_out_ix: Callable[[str], int] = lambda stem: int(stem.split('_', maxsplit=1)[
 out_keyer: Callable[[str], int] = lambda fname: get_out_ix(Path(fname).stem)
 out_imgs: List[str] = sorted(out_imgs_unsorted, key=out_keyer)
 next_ix = get_out_ix(Path(out_imgs[-1]).stem)+1 if out_imgs else 0
-out_stem: str = f'{next_ix:05d}_{seed}_{guidance_scale}_{cfg_scale}'
+out_stem: str = f'{next_ix:05d}_{seed}_{guidance_scale}'
 
 if log_intermediates_enabled:
   intermediates_path = join(intermediates_dir, out_stem)
