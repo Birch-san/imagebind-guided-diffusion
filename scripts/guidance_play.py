@@ -149,8 +149,8 @@ latents *= sigmas[0]
 
 cond = '1girl, masterpiece, extremely detailed, light smile, outdoors, best quality, best aesthetic, floating hair, full body, ribbon, looking at viewer, hair between eyes, watercolor (medium), traditional media'
 neg_cond = 'lowres, bad anatomy, bad hands, missing fingers, extra fingers, blurry, mutation, deformed face, ugly, bad proportions, monster, cropped, worst quality, jpeg, bad posture, long body, long neck, jpeg artifacts, deleted, bad aesthetic, realistic, real life, instagram'
-# conds = [neg_cond, cond]
-conds = [cond]
+conds = [neg_cond, cond]
+# conds = [cond]
 embed_and_mask: EmbeddingAndMask = embed(conds)
 embedding, _ = embed_and_mask
 
@@ -179,14 +179,29 @@ imgbind_inputs: Dict[ModalityType, FloatTensor] = {
 imgbind_out: Dict[ModalityType, FloatTensor] = imgbind.forward(imgbind_inputs)
 target_imgbind_cond: FloatTensor = imgbind_out[ModalityType.TEXT][0]
 guidance_scale=300.
-denoiser = ImgBindGuidedNoCFGDenoiser(
+cfg_scale=2.
+denoiser = ImgBindGuidedCFGDenoiser(
   denoiser=unet_k_wrapped,
   imgbind=imgbind,
   latents_to_rgb=guidance_decoder,
   target_imgbind_cond=target_imgbind_cond,
   cross_attention_conds=embedding,
   guidance_scale=guidance_scale,
+  cfg_scale=cfg_scale,
 )
+# denoiser = ImgBindGuidedNoCFGDenoiser(
+#   denoiser=unet_k_wrapped,
+#   imgbind=imgbind,
+#   latents_to_rgb=guidance_decoder,
+#   target_imgbind_cond=target_imgbind_cond,
+#   cross_attention_conds=embedding,
+#   guidance_scale=guidance_scale,
+# )
+# denoiser = CFGDenoiser(
+#   denoiser=unet_k_wrapped,
+#   cross_attention_conds=embedding,
+#   cfg_scale=7.5,
+# )
 # denoiser = NoCFGDenoiser(
 #   denoiser=unet_k_wrapped,
 #   cross_attention_conds=embedding,
@@ -202,7 +217,7 @@ get_out_ix: Callable[[str], int] = lambda stem: int(stem.split('_', maxsplit=1)[
 out_keyer: Callable[[str], int] = lambda fname: get_out_ix(Path(fname).stem)
 out_imgs: List[str] = sorted(out_imgs_unsorted, key=out_keyer)
 next_ix = get_out_ix(Path(out_imgs[-1]).stem)+1 if out_imgs else 0
-out_stem: str = f'{next_ix:05d}_{seed}_{guidance_scale}'
+out_stem: str = f'{next_ix:05d}_{seed}_{guidance_scale}_{cfg_scale}'
 
 if log_intermediates_enabled:
   intermediates_path = join(intermediates_dir, out_stem)
