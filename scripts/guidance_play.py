@@ -20,7 +20,10 @@ from imgbind_guidance.clip_embed.embed_text_types import Embed, EmbeddingAndMask
 from imgbind_guidance.clip_embed.embed_text import ClipImplementation, get_embedder
 from imgbind_guidance.denoisers.unet_2d_wrapper import EPSDenoiser, VDenoiser
 from imgbind_guidance.latents_shape import LatentsShape
-from imgbind_guidance.denoisers.imgbind_guided_denoiser import ImgBindGuidedCFGDenoiser
+from imgbind_guidance.denoisers.imgbind_guided_nocfg_denoiser import ImgBindGuidedNoCFGDenoiser
+from imgbind_guidance.denoisers.imgbind_guided_cfg_denoiser import ImgBindGuidedCFGDenoiser
+from imgbind_guidance.denoisers.nocfg_denoiser import NoCFGDenoiser
+from imgbind_guidance.denoisers.cfg_denoiser import CFGDenoiser
 from imgbind_guidance.latents_to_pils import LatentsToPils, LatentsToBCHW, make_latents_to_pils, make_latents_to_bchw
 from imgbind_guidance.log_intermediates import LogIntermediates, LogIntermediatesFactory, make_log_intermediates_factory
 from imgbind_guidance.approx_vae.latents_to_pils import make_approx_latents_to_pils
@@ -90,7 +93,7 @@ guidance_encoder: RGBToLatents = approx_guidance_encoder if guidance_use_approx_
 log_intermediates_approx_decode = True
 intermediate_latents_to_pils: LatentsToPils = approx_latents_to_pils if log_intermediates_approx_decode else latents_to_pils
 make_log_intermediates: LogIntermediatesFactory = make_log_intermediates_factory(intermediate_latents_to_pils)
-log_intermediates_enabled = True
+log_intermediates_enabled = False
 
 if log_intermediates_enabled and not log_intermediates_approx_decode or not guidance_use_approx_vae:
   # if we're expecting to invoke VAE every sampler step: make it cheaper to do so
@@ -164,6 +167,7 @@ noise_sampler = BrownianTreeNoiseSampler(
 )
 
 imgbind: ImageBindModel = imagebind_huge(pretrained=True).to(device).eval().requires_grad_(False)
+torch.compile(imgbind, mode='reduce-overhead')
 text_bind=['watercolour illustration of a girl sitting by a campfire at night']
 image_bind_path=[join(img_bind_assets_dir, asset) for asset in []]
 audio_bind_path=[join(img_bind_assets_dir, asset) for asset in []]
@@ -174,17 +178,19 @@ imgbind_inputs: Dict[ModalityType, FloatTensor] = {
 }
 imgbind_out: Dict[ModalityType, FloatTensor] = imgbind.forward(imgbind_inputs)
 target_imgbind_cond: FloatTensor = imgbind_out[ModalityType.TEXT][0]
-guidance_scale=400.
-denoiser = ImgBindGuidedCFGDenoiser(
+guidance_scale=300.
+denoiser = ImgBindGuidedNoCFGDenoiser(
   denoiser=unet_k_wrapped,
   imgbind=imgbind,
   latents_to_rgb=guidance_decoder,
-  rgb_to_latents=guidance_encoder,
   target_imgbind_cond=target_imgbind_cond,
   cross_attention_conds=embedding,
-  cfg_scale=7.5,
   guidance_scale=guidance_scale,
 )
+# denoiser = NoCFGDenoiser(
+#   denoiser=unet_k_wrapped,
+#   cross_attention_conds=embedding,
+# )
 
 out_dir = 'out'
 makedirs(out_dir, exist_ok=True)

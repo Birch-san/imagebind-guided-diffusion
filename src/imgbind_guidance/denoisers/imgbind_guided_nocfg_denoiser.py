@@ -1,28 +1,21 @@
 from .unet_2d_wrapper import Denoiser
-from torch import FloatTensor, BoolTensor, no_grad, enable_grad
+from torch import FloatTensor, BoolTensor, enable_grad
 from torch import autograd
 import torch.nn.functional as F
 from dataclasses import dataclass
 from typing import Optional, Dict, Tuple
 from models.imagebind_model import ImageBindModel, ModalityType
-from data import load_and_transform_vision_data
-from imgbind_guidance.approx_vae.latent_roundtrip import LatentsToRGB, RGBToLatents
+from imgbind_guidance.approx_vae.latent_roundtrip import LatentsToRGB
 from ..preprocess_imgbind_img import transform_vision_data
-
-def spherical_dist_loss(x: FloatTensor, y: FloatTensor) -> FloatTensor:
-  x = F.normalize(x, dim=-1)
-  y = F.normalize(y, dim=-1)
-  return (x - y).norm(dim=-1).div(2).arcsin().pow(2).mul(2)
+from ..spherical_dist_loss import spherical_dist_loss
 
 @dataclass
-class ImgBindGuidedCFGDenoiser:
+class ImgBindGuidedNoCFGDenoiser:
   denoiser: Denoiser
   imgbind: ImageBindModel
   latents_to_rgb: LatentsToRGB
-  rgb_to_latents: RGBToLatents
   cross_attention_conds: FloatTensor
   target_imgbind_cond: FloatTensor
-  cfg_scale: float = 7.5
   guidance_scale: float = 50.
   cross_attention_mask: Optional[BoolTensor] = None
 
