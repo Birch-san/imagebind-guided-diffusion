@@ -20,6 +20,15 @@ from imgbind_guidance.latents_shape import LatentsShape
 from imgbind_guidance.cfg_denoiser import CFGDenoiser
 from imgbind_guidance.latents_to_pils import LatentsToPils, LatentsToBCHW, make_latents_to_pils, make_latents_to_bchw
 from imgbind_guidance.log_intermediates import LogIntermediates, LogIntermediatesFactory, make_log_intermediates_factory
+from imgbind_guidance.approx_vae.latents_to_pils import make_approx_latents_to_pils
+from imgbind_guidance.approx_vae.decoder_ckpt import DecoderCkpt
+from imgbind_guidance.approx_vae.encoder_ckpt import EncoderCkpt
+from imgbind_guidance.approx_vae.decoder import Decoder
+from imgbind_guidance.approx_vae.encoder import Encoder
+from imgbind_guidance.approx_vae.get_approx_decoder import get_approx_decoder
+from imgbind_guidance.approx_vae.get_approx_encoder import get_approx_encoder
+from imgbind_guidance.approx_vae.latent_roundtrip import LatentsToRGB, RGBToLatents, make_approx_latents_to_rgb, make_approx_rgb_to_latents, make_real_latents_to_rgb, make_real_rgb_to_latents
+from imgbind_guidance.approx_vae.ckpt_picker import get_approx_decoder_ckpt, get_approx_encoder_ckpt
 
 device_type: DeviceType = get_device_type()
 device = torch.device(device_type)
@@ -53,6 +62,24 @@ vae: AutoencoderKL = AutoencoderKL.from_pretrained(
 ).to(device).eval()
 latents_to_bchw: LatentsToBCHW = make_latents_to_bchw(vae)
 latents_to_pils: LatentsToPils = make_latents_to_pils(latents_to_bchw)
+
+guidance_use_approx_vae = True
+approx_decoder_ckpt: DecoderCkpt = get_approx_decoder_ckpt('waifu-diffusion/wd-1-5-beta3')
+approx_decoder: Decoder = get_approx_decoder(approx_decoder_ckpt, device)
+approx_encoder_ckpt: EncoderCkpt = get_approx_encoder_ckpt('waifu-diffusion/wd-1-5-beta3')
+approx_encoder: Encoder = get_approx_encoder(approx_encoder_ckpt, device)
+approx_latents_to_pils: LatentsToPils = make_approx_latents_to_pils(approx_decoder)
+approx_guidance_decoder: LatentsToRGB = make_approx_latents_to_rgb(approx_decoder)
+approx_guidance_encoder: RGBToLatents = make_approx_rgb_to_latents(approx_encoder)
+real_guidance_decoder: LatentsToRGB = make_real_latents_to_rgb(vae)
+real_guidance_encoder: RGBToLatents = make_real_rgb_to_latents(vae)
+guidance_decoder: LatentsToRGB = approx_guidance_decoder if guidance_use_approx_vae else real_guidance_decoder
+guidance_encoder: RGBToLatents = approx_guidance_encoder if guidance_use_approx_vae else real_guidance_encoder
+
+approx_intermediate_decode = True
+intermediate_latents_to_pils: LatentsToPils = approx_latents_to_pils if approx_intermediate_decode else latents_to_pils
+make_log_intermediates: LogIntermediatesFactory = make_log_intermediates_factory(intermediate_latents_to_pils)
+log_intermediates_enabled = True
 
 embed: Embed = get_embedder(
   impl=ClipImplementation.HF,
@@ -121,19 +148,10 @@ noise_sampler = BrownianTreeNoiseSampler(
 
 denoiser = CFGDenoiser(unet_k_wrapped, cross_attention_conds=embedding)
 
-denoised_latents: FloatTensor = sample_dpmpp_2m_sde(
-  denoiser,
-  latents,
-  sigmas,
-  noise_sampler=noise_sampler, # you can only pass noise sampler to ancestral samplers
-  # callback=callback,
-).to(vae_dtype)
-del latents
-pil_images: List[Image.Image] = latents_to_pils(denoised_latents)
-del denoised_latents
-
 out_dir = 'out'
 makedirs(out_dir, exist_ok=True)
+intermediates_dir=join(out_dir, 'intermediates')
+makedirs(intermediates_dir, exist_ok=True)
 
 out_imgs_unsorted: List[str] = fnmatch.filter(listdir(out_dir), f'*_*.*')
 get_out_ix: Callable[[str], int] = lambda stem: int(stem.split('_', maxsplit=1)[0])
@@ -141,6 +159,24 @@ out_keyer: Callable[[str], int] = lambda fname: get_out_ix(Path(fname).stem)
 out_imgs: List[str] = sorted(out_imgs_unsorted, key=out_keyer)
 next_ix = get_out_ix(Path(out_imgs[-1]).stem)+1 if out_imgs else 0
 out_stem: str = f'{next_ix:05d}_{seed}'
+
+if log_intermediates_enabled:
+  intermediates_path = join(intermediates_dir, out_stem)
+  makedirs(intermediates_path, exist_ok=True)
+  callback: LogIntermediates = make_log_intermediates([intermediates_path])
+else:
+  callback = None
+
+denoised_latents: FloatTensor = sample_dpmpp_2m_sde(
+  denoiser,
+  latents,
+  sigmas,
+  noise_sampler=noise_sampler, # you can only pass noise sampler to ancestral samplers
+  callback=callback,
+).to(vae_dtype)
+del latents
+pil_images: List[Image.Image] = latents_to_pils(denoised_latents)
+del denoised_latents
 
 
 for stem, image in zip([out_stem], pil_images):
