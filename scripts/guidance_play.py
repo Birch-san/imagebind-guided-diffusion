@@ -7,17 +7,17 @@ from os.path import join
 from pathlib import Path
 import fnmatch
 from typing import List, Callable
-from k_diffusion.sampling import BrownianTreeNoiseSampler, get_sigmas_karras, sample_dpmpp_2m_sde
+from k_diffusion.sampling import BrownianTreeNoiseSampler, get_sigmas_karras, sample_dpmpp_2m_sde, sample_dpmpp_2m
 from PIL import Image
 
-from imgbind_guidance.schedule.schedule_params import get_alphas, get_alphas_cumprod, get_betas, quantize_to
+from imgbind_guidance.schedule.schedule_params import get_alphas, get_alphas_cumprod, get_betas
 from imgbind_guidance.device import DeviceType, get_device_type
 from imgbind_guidance.schedule.schedules import KarrasScheduleParams, KarrasScheduleTemplate, get_template_schedule
 from imgbind_guidance.clip_embed.embed_text_types import Embed, EmbeddingAndMask
 from imgbind_guidance.clip_embed.embed_text import ClipImplementation, get_embedder
-from imgbind_guidance.k_diff_wrappers.unet_2d_wrapper import EPSDenoiser, VDenoiser
+from imgbind_guidance.denoisers.unet_2d_wrapper import EPSDenoiser, VDenoiser
 from imgbind_guidance.latents_shape import LatentsShape
-from imgbind_guidance.cfg_denoiser import CFGDenoiser
+from imgbind_guidance.denoisers.imgbind_guided_denoiser import ImgBindGuidedCFGDenoiser
 from imgbind_guidance.latents_to_pils import LatentsToPils, LatentsToBCHW, make_latents_to_pils, make_latents_to_bchw
 from imgbind_guidance.log_intermediates import LogIntermediates, LogIntermediatesFactory, make_log_intermediates_factory
 from imgbind_guidance.approx_vae.latents_to_pils import make_approx_latents_to_pils
@@ -96,7 +96,7 @@ embed: Embed = get_embedder(
 alphas_cumprod: FloatTensor = get_alphas_cumprod(get_alphas(get_betas(device=device))).to(dtype=sampling_dtype)
 unet_k_wrapped = VDenoiser(unet, alphas_cumprod, sampling_dtype) if needs_vparam else EPSDenoiser(unet, alphas_cumprod, sampling_dtype)
 
-schedule_template = KarrasScheduleTemplate.CudaMastering
+schedule_template = KarrasScheduleTemplate.Prototyping
 schedule: KarrasScheduleParams = get_template_schedule(
   schedule_template,
   model_sigma_min=unet_k_wrapped.sigma_min,
@@ -125,7 +125,7 @@ latents_shape = LatentsShape(unet.in_channels, height // latent_scale_factor, wi
 seed = 1234
 generator = Generator(device='cpu')
 
-latents = randn((1, latents_shape.channels, latents_shape.height, latents_shape.width), dtype=sampling_dtype, device='cpu').to(device)
+latents = randn((1, latents_shape.channels, latents_shape.height, latents_shape.width), dtype=sampling_dtype, device='cpu', generator=generator).to(device)
 latents *= sigmas[0]
 
 cond = '1girl, masterpiece, extremely detailed, light smile, outdoors, best quality, best aesthetic, floating hair, full body, ribbon, looking at viewer, hair between eyes, watercolor (medium), traditional media'
@@ -146,7 +146,7 @@ noise_sampler = BrownianTreeNoiseSampler(
   seed=seed,
 )
 
-denoiser = CFGDenoiser(unet_k_wrapped, cross_attention_conds=embedding)
+denoiser = ImgBindGuidedCFGDenoiser(unet_k_wrapped, cross_attention_conds=embedding)
 
 out_dir = 'out'
 makedirs(out_dir, exist_ok=True)
@@ -167,11 +167,11 @@ if log_intermediates_enabled:
 else:
   callback = None
 
-denoised_latents: FloatTensor = sample_dpmpp_2m_sde(
+denoised_latents: FloatTensor = sample_dpmpp_2m(
   denoiser,
   latents,
   sigmas,
-  noise_sampler=noise_sampler, # you can only pass noise sampler to ancestral samplers
+  # noise_sampler=noise_sampler, # you can only pass noise sampler to ancestral samplers
   callback=callback,
 ).to(vae_dtype)
 del latents
@@ -180,6 +180,7 @@ del denoised_latents
 
 
 for stem, image in zip([out_stem], pil_images):
-  out_name: str = join(out_dir, f'{stem}.png')
+  # TODO: put this back to png once we've stopped prototyping
+  out_name: str = join(out_dir, f'{stem}.jpg')
   image.save(out_name)
   print(f'Saved image: {out_name}')

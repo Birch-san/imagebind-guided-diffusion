@@ -1,4 +1,4 @@
-from .k_diff_wrappers.unet_2d_wrapper import Denoiser
+from .unet_2d_wrapper import Denoiser
 from torch import FloatTensor, BoolTensor
 from dataclasses import dataclass
 from typing import Optional

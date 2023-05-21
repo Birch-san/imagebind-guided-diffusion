@@ -1,10 +1,11 @@
-from .k_diff_wrappers.unet_2d_wrapper import Denoiser
+from .unet_2d_wrapper import Denoiser
 from torch import FloatTensor, BoolTensor
 from dataclasses import dataclass
 from typing import Optional
 
 @dataclass
-class CFGDenoiser:
+class ImgBindGuidedCFGDenoiser:
+  # TODO: everything
   denoiser: Denoiser
   cross_attention_conds: FloatTensor
   cfg_scale: float = 7.5
@@ -29,5 +30,3 @@ class CFGDenoiser:
     uncond, cond = denoised_latents.chunk(conds_per_sample)
     del noised_latents_in, sigma_in
     return uncond + (cond - uncond) * self.cfg_scale
-
-
