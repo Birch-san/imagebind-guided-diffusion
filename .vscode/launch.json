@@ -1,0 +1,28 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Guidance play",
+      "type": "python",
+      "request": "launch",
+      "module": "scripts.guidance_play",
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/lib/ImageBind:${env.PYTHONPATH}"
+      }
+    },
+    {
+      "name": "Python: Embed play",
+      "type": "python",
+      "request": "launch",
+      "module": "scripts.embed_play",
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/lib/ImageBind:${env.PYTHONPATH}"
+      }
+    }
+  ]
+}
