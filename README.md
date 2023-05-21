@@ -39,5 +39,5 @@ pip install -r requirements.txt
 From root of repository:
 
 ```bash
-PYTHONPATH="./src:./lib/ImageBind:$PYTHONPATH" python -m scripts.guidance_play
+PYTHONPATH="src:lib/ImageBind:$PYTHONPATH" python -m scripts.guidance_play
 ```

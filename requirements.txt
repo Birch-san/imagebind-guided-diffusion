@@ -12,3 +12,4 @@ iopath
 numpy
 k-diffusion>=0.0.15
 diffusers
+transformers
