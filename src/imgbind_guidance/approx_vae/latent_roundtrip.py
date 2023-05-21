@@ -14,7 +14,6 @@ class LatentsToRGB(Protocol):
 class RGBToLatents(Protocol):
   def __call__(rgb: FloatTensor) -> FloatTensor: ...
 
-@no_grad()
 def approx_latents_to_rgb(decoder: Decoder, latents: FloatTensor) -> FloatTensor:
   """
   latents: [b,c,h,w]
@@ -31,7 +30,6 @@ def approx_latents_to_rgb(decoder: Decoder, latents: FloatTensor) -> FloatTensor
 def make_approx_latents_to_rgb(decoder: Decoder) -> LatentsToRGB:
   return partial(approx_latents_to_rgb, decoder)
 
-@no_grad()
 def approx_rgb_to_latents(encoder: Encoder, rgb: FloatTensor) -> FloatTensor:
   """
       rgb: [b,c,h,w]
@@ -48,7 +46,6 @@ def approx_rgb_to_latents(encoder: Encoder, rgb: FloatTensor) -> FloatTensor:
 def make_approx_rgb_to_latents(encoder: Encoder) -> RGBToLatents:
   return partial(approx_rgb_to_latents, encoder)
 
-@no_grad()
 def real_latents_to_rgb(vae: AutoencoderKL, latents: FloatTensor) -> FloatTensor:
   """
   latents: [b,c,h,w]
@@ -69,7 +66,6 @@ def real_latents_to_rgb(vae: AutoencoderKL, latents: FloatTensor) -> FloatTensor
 def make_real_latents_to_rgb(decoder: Decoder) -> LatentsToRGB:
   return partial(real_latents_to_rgb, decoder)
 
-@no_grad()
 def real_rgb_to_latents(vae: AutoencoderKL, generator: Optional[torch.Generator], rgb: FloatTensor) -> FloatTensor:
   """
       rgb: [b,c,h,w]

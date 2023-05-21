@@ -24,6 +24,7 @@ def latents_to_bchw(vae: AutoencoderKL, latents: Tensor) -> Tensor:
 def make_latents_to_bchw(vae: AutoencoderKL) -> LatentsToPils:
   return partial(latents_to_bchw, vae)
 
+@no_grad()
 def latents_to_pils(latents_to_bchw: LatentsToBCHW, latents: Tensor) -> List[Image.Image]:
   images: Tensor = latents_to_bchw(latents)
 

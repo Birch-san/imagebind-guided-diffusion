@@ -20,9 +20,10 @@ def log_intermediate(
   intermediates_paths: List[str],
   payload: KSamplerCallbackPayload,
 ) -> None:
+  file_type = 'jpg'
   sample_pils: List[Image.Image] = latents_to_pils(payload['denoised'])
   for intermediates_path, img in zip(intermediates_paths, sample_pils):
-    img.save(os.path.join(intermediates_path, f"{payload['i']:03d}_{payload['sigma'].item():.4f}.png"))
+    img.save(os.path.join(intermediates_path, f"{payload['i']:03d}_{payload['sigma'].item():.4f}.{file_type}"))
 
 LogIntermediates: TypeAlias = Callable[[KSamplerCallbackPayload], None]
 LogIntermediatesFactory: TypeAlias = Callable[[List[str]], LogIntermediates]
