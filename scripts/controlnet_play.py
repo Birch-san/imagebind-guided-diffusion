@@ -16,15 +16,22 @@ from random import randint
 import numpy as np
 from numpy.typing import NDArray
 import cv2
+from controlnet_aux import HEDdetector
+
+hed = HEDdetector.from_pretrained('lllyasviel/ControlNet')
 
 image: Image.Image = load_image('/home/birch/witch_512_512.png')
-image: NDArray = np.array(image)
-image = cv2.Canny(image, 100, 200)
-image = image[:, :, None]
-image = np.concatenate([image, image, image], axis=2)
-canny_image = Image.fromarray(image)
+# image: NDArray = np.array(image)
+# image = cv2.Canny(image, 100, 200)
+# image = image[:, :, None]
+# image = np.concatenate([image, image, image], axis=2)
+# canny_image = Image.fromarray(image)
 
-controlnet: ControlNetModel = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-canny', torch_dtype=torch.float16)
+hed_image: Image.Image = hed(image, scribble=True)
+# hed_image.save('out/witch_hed.png')
+
+# controlnet: ControlNetModel = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-canny', torch_dtype=torch.float16)
+controlnet: ControlNetModel = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-scribble', torch_dtype=torch.float16)
 
 vae: AutoencoderKL = AutoencoderKL.from_pretrained('hakurei/waifu-diffusion', subfolder='vae', torch_dtype=torch.float16)
 
@@ -35,11 +42,11 @@ scheduler: DPMSolverMultistepScheduler = DPMSolverMultistepScheduler.from_pretra
 #   'Birchlabs/wd-1-5-beta3-unofficial',
   subfolder='scheduler',
   # sde-dpmsolver++ is very new. if your diffusers version doesn't have it: use 'dpmsolver++' instead.
-#   algorithm_type='sde-dpmsolver++',
-  algorithm_type='dpmsolver++',
+  algorithm_type='sde-dpmsolver++',
+  # algorithm_type='dpmsolver++',
   solver_order=2,
-  # solver_type='heun' may give a sharper image. Cheng Lu reckons midpoint is better.
-#   solver_type='midpoint',
+  # solver_type='heun' seemed to give me black images. in k-diffusion it supposedly should give a sharper image. Cheng Lu reckons midpoint is better.
+  solver_type='midpoint',
   use_karras_sigmas=True,
 )
 
@@ -90,14 +97,6 @@ min, max = uint32_iinfo.min, uint32_iinfo.max
 seed = randint(uint32_iinfo.min, uint32_iinfo.max)
 # pipeline invocation args documented here:
 # https://github.com/huggingface/diffusers/blob/0392eceba8d42b24fcecc56b2cc1f4582dbefcc4/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py#LL544C18-L544C18
-# out: StableDiffusionPipelineOutput = pipe.__call__(
-#   prompt,
-#   negative_prompt=negative_prompt,
-#   height=height,
-#   width=width,
-#   num_inference_steps=22,
-#   generator=Generator().manual_seed(seed)
-# )
 out: StableDiffusionPipelineOutput = pipe.__call__(
   prompt,
   negative_prompt=negative_prompt,
@@ -105,12 +104,10 @@ out: StableDiffusionPipelineOutput = pipe.__call__(
   width=width,
   num_inference_steps=22,
   generator=Generator().manual_seed(seed),
-  image=canny_image,
+  image=hed_image,
+  num_images_per_prompt=8,
 )
 images: List[Image.Image] = out.images
-img, *_ = images
-
-# img.save('out_pipe/wd13.png')
 
 out_dir = 'out_pipe'
 makedirs(out_dir, exist_ok=True)
@@ -120,8 +117,10 @@ get_out_ix: Callable[[str], int] = lambda stem: int(stem.split('_', maxsplit=1)[
 out_keyer: Callable[[str], int] = lambda fname: get_out_ix(Path(fname).stem)
 out_imgs: List[str] = sorted(out_imgs_unsorted, key=out_keyer)
 next_ix = get_out_ix(Path(out_imgs[-1]).stem)+1 if out_imgs else 0
-out_stem: str = f'{next_ix:05d}_{seed}'
 
-out_name: str = join(out_dir, f'{out_stem}.jpg')
-img.save(out_name)
-print(f'Saved image: {out_name}')
+for ix, img in enumerate(images):
+  out_stem: str = f'{next_ix:05d}_{seed}'
+
+  out_name: str = join(out_dir, f'{out_stem}.{ix}.jpg')
+  img.save(out_name)
+  print(f'Saved image: {out_name}')
