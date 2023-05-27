@@ -23,6 +23,16 @@
       "env": {
         "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/lib/ImageBind:${env.PYTHONPATH}"
       }
+    },
+    {
+      "name": "Python: ControlNet play",
+      "type": "python",
+      "request": "launch",
+      "module": "scripts.controlnet_play",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src:${env.PYTHONPATH}"
+      }
     }
   ]
 }
